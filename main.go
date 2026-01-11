@@ -18,6 +18,8 @@ func main() {
 	router := server.GetServer()
 	routes.UserRoutes(router)
 	routes.AddGracefullRoute(router)
+	routes.AddJobRoute(router)
+
 	server := &http.Server{
 		Addr:    port,
 		Handler: router,
