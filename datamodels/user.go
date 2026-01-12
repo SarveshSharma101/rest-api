@@ -1,4 +1,4 @@
-package user
+package datamodels
 
 type User struct {
 	Age       int32  `json:"age,omitempty"`

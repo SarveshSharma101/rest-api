@@ -2,13 +2,15 @@ package handler
 
 import (
 	"net/http"
-	"rest-api/rest-api/user"
+	datamodels "rest-api/rest-api/datamodels"
+	middleware "rest-api/rest-api/internals/middleware/auth"
 	"rest-api/rest-api/utils"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-var users []user.User
+var users []datamodels.User
 
 func GetUserById(ctx *gin.Context) {
 	id := ctx.Param("id")
@@ -41,7 +43,7 @@ func GetAllUser(ctx *gin.Context) {
 }
 
 func CreateUser(ctx *gin.Context) {
-	user := user.User{}
+	user := datamodels.User{}
 	if err := ctx.ShouldBindBodyWithJSON(&user); err != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -119,7 +121,7 @@ func Delete(ctx *gin.Context) {
 func Update(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	userUpdateReq := user.UserUpdateReq{}
+	userUpdateReq := datamodels.UserUpdateReq{}
 	if err := ctx.ShouldBindBodyWithJSON(&userUpdateReq); err != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -159,7 +161,7 @@ func Update(ctx *gin.Context) {
 func Patch(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	userUpdateReq := user.UserUpdateReq{}
+	userUpdateReq := datamodels.UserUpdateReq{}
 	if err := ctx.ShouldBindBodyWithJSON(&userUpdateReq); err != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -199,6 +201,123 @@ func Patch(ctx *gin.Context) {
 		http.StatusNotFound,
 		gin.H{
 			"User": "nil",
+		},
+	)
+
+}
+
+func Login(ctx *gin.Context) {
+	loginReq := datamodels.LoginReq{}
+	if err := ctx.ShouldBindBodyWithJSON(&loginReq); err != nil {
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{
+				"error": err,
+			},
+		)
+		return
+	}
+	if loginReq.Pwd == "" || loginReq.UserId == "" {
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{
+				"error": "password and userid are required",
+			},
+		)
+		return
+	}
+
+	for _, u := range users {
+		if u.UID == loginReq.UserId {
+			if u.Password == loginReq.Pwd {
+				tokens, err := middleware.GenerateTokens(u.UID, "")
+				if err != nil {
+					ctx.JSON(
+						http.StatusInternalServerError,
+						gin.H{
+							"error": err,
+						},
+					)
+					return
+				}
+				ctx.JSON(
+					http.StatusOK,
+					gin.H{
+						"jwt":           tokens.Jwt,
+						"refresh-token": tokens.Refresh,
+					},
+				)
+				return
+			} else {
+				ctx.JSON(
+					http.StatusUnauthorized,
+					gin.H{
+						"error": "Password did not match",
+					},
+				)
+				return
+			}
+		}
+	}
+
+	ctx.JSON(
+		http.StatusNotFound,
+		gin.H{
+			"error": "user not found",
+		},
+	)
+	return
+}
+
+func Refresh(c *gin.Context) {
+	header := c.GetHeader("Authorization")
+	if header == "" {
+		c.JSON(
+			http.StatusUnauthorized,
+			gin.H{
+				"err": "Authorization token not provided in header",
+			},
+		)
+		return
+	}
+
+	auth := strings.Split(header, " ")
+	if len(auth) != 2 || auth[0] != "Bearer" {
+		c.JSON(
+			http.StatusUnauthorized,
+			gin.H{
+				"err": "Authorisation header doesn't have bearer string",
+			},
+		)
+		return
+	}
+
+	claim, err := middleware.ParseToken(auth[1])
+	if err != nil {
+		c.JSON(
+			http.StatusUnauthorized,
+			gin.H{
+				"err": err,
+			},
+		)
+		return
+	}
+
+	tokens, err := middleware.GenerateTokens(claim.UserId, "")
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			gin.H{
+				"error": err,
+			},
+		)
+		return
+	}
+	c.JSON(
+		http.StatusOK,
+		gin.H{
+			"jwt":           tokens.Jwt,
+			"refresh-token": tokens.Refresh,
 		},
 	)
 

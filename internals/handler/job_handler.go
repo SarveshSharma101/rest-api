@@ -2,7 +2,7 @@ package handler
 
 import (
 	"net/http"
-	datamodels "rest-api/rest-api/datamodels/jobs"
+	datamodels "rest-api/rest-api/datamodels"
 	"rest-api/rest-api/utils"
 	"sync"
 	"time"
